@@ -1,0 +1,557 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Registration and JWT authentication
+  - name: organizations
+    description: Recycling and social organizations
+  - name: donations
+    description: Traceable material donations
+  - name: dashboard
+    description: Role-aware impact summaries
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a donor or recipient organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistrationInput"
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSession"
+        "400":
+          description: Invalid registration details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Email is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Sign in and receive a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSession"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the authenticated account
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /organizations:
+    get:
+      operationId: listOrganizations
+      tags: [organizations]
+      summary: List registered recipient organizations
+      responses:
+        "200":
+          description: Recipient organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+  /admin/organizations:
+    get:
+      operationId: listOrganizationsForReview
+      tags: [organizations]
+      summary: List recipient organizations for administrator verification
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Recipient organizations and verification status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/organizations/{id}/verification:
+    patch:
+      operationId: updateOrganizationVerification
+      tags: [organizations]
+      summary: Verify or suspend a recipient organization
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationVerificationInput"
+      responses:
+        "200":
+          description: Organization verification updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: Invalid organization or verification value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /donations:
+    get:
+      operationId: listDonations
+      tags: [donations]
+      summary: List donations visible to the current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: "#/components/schemas/DonationStatus"
+      responses:
+        "200":
+          description: Donations visible to the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Donation"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createDonation
+      tags: [donations]
+      summary: Register a material donation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DonationInput"
+      responses:
+        "201":
+          description: Donation registered for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Donation"
+        "400":
+          description: Invalid donation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /donations/{id}/status:
+    patch:
+      operationId: updateDonationStatus
+      tags: [donations]
+      summary: Validate or complete a donation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DonationStatusInput"
+      responses:
+        "200":
+          description: Donation status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Donation"
+        "400":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Insufficient role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Donation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Donation status changed concurrently
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get role-aware donation and impact totals
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Donation totals and recent activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    UserRole:
+      type: string
+      enum: [donor, organization, admin]
+    RegistrationRole:
+      type: string
+      enum: [donor, organization]
+    DonationCategory:
+      type: string
+      enum: [electronics, plastics, glass, paper, metal, clothing, food, other]
+    DonationUnit:
+      type: string
+      enum: [kg, pieces, liters]
+    DonationStatus:
+      type: string
+      enum: [pending, approved, delivered, rejected]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    User:
+      type: object
+      required: [id, name, email, role, organizationName, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/UserRole"
+        organizationName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+    UserSession:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+    RegistrationInput:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 10
+          maxLength: 128
+        role:
+          $ref: "#/components/schemas/RegistrationRole"
+        organizationName:
+          type: string
+          minLength: 2
+          maxLength: 140
+        municipality:
+          type: string
+          minLength: 2
+          maxLength: 100
+        description:
+          type: string
+          minLength: 10
+          maxLength: 700
+        acceptedCategories:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/DonationCategory"
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+    Organization:
+      type: object
+      required: [id, name, municipality, description, acceptedCategories, isVerified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        municipality:
+          type: string
+        description:
+          type: string
+        acceptedCategories:
+          type: array
+          items:
+            $ref: "#/components/schemas/DonationCategory"
+        isVerified:
+          type: boolean
+    OrganizationVerificationInput:
+      type: object
+      required: [isVerified]
+      properties:
+        isVerified:
+          type: boolean
+    Donation:
+      type: object
+      required: [id, donorId, donorName, recipientId, recipientName, category, title, description, quantity, unit, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        donorId:
+          type: string
+          format: uuid
+        donorName:
+          type: string
+        recipientId:
+          type: string
+          format: uuid
+        recipientName:
+          type: string
+        category:
+          $ref: "#/components/schemas/DonationCategory"
+        title:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+          minimum: 0.01
+        unit:
+          $ref: "#/components/schemas/DonationUnit"
+        status:
+          $ref: "#/components/schemas/DonationStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DonationInput:
+      type: object
+      required: [recipientId, category, title, description, quantity, unit]
+      properties:
+        recipientId:
+          type: string
+          format: uuid
+        category:
+          $ref: "#/components/schemas/DonationCategory"
+        title:
+          type: string
+          minLength: 2
+          maxLength: 120
+        description:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1000000
+        unit:
+          $ref: "#/components/schemas/DonationUnit"
+    DonationStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/DonationStatus"
+    DashboardSummary:
+      type: object
+      required: [donationCount, pendingCount, approvedCount, deliveredCount, rejectedCount, totalWeightKg, recentDonations]
+      properties:
+        donationCount:
+          type: integer
+        pendingCount:
+          type: integer
+        approvedCount:
+          type: integer
+        deliveredCount:
+          type: integer
+        rejectedCount:
+          type: integer
+        totalWeightKg:
+          type: number
+          description: Sum of registered donations measured in kilograms
+        recentDonations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Donation"
+

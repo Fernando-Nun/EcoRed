@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "EcoRed — Donaciones y reciclaje"
+description = "Plataforma para que personas registren donaciones de materiales reutilizables o reciclables, centros de acopio las administren y administradores validen el proceso."
+version = "1.0.0"
+id = "artifacts/ecored"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25802
+
+[services.development]
+run = "pnpm --filter @workspace/ecored run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ecored", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ecored/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25802"
+BASE_PATH = "/"
